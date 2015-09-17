@@ -26,3 +26,19 @@ color (optional) - text color
 
 background (optinal) - background color
 
+## Screenshots
+
+### Video only
+
+![Infopanel video]
+(http://www.elibsystem.ru/sites/default/files/docs/infopanel/InfoPanel-video.png)
+
+### Video and RSS
+
+![Infopanel video and rss]
+(http://www.elibsystem.ru/sites/default/files/docs/infopanel/InfoPanel-rss.png)
+
+### Video and InfoBlock
+
+![Infopanel video and InfoBlock]
+(http://www.elibsystem.ru/sites/default/files/docs/infopanel/InfoPanel-infoblock.png)
