@@ -4,6 +4,8 @@ Infopanel client on Adobe AIR for Windows and Mac OS X
 ![Infopanel application with InfoBlock and RSS feed]
 (http://www.elibsystem.ru/sites/default/files/docs/infopanel/InfoPanelAir.png)
 
+This module required drupal site with enabled module Infopanel from repo: https://github.com/borovinskiy/infopanel
+
 ## Manual
 
 Russian: http://elibsystem.ru/docs/infopanel/apps
