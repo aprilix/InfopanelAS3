@@ -1,0 +1,305 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009"
+                       xmlns:s="library://ns.adobe.com/flex/spark"
+                       xmlns:mx="library://ns.adobe.com/flex/mx" 
+					   chromeColor="{backgroundColor}"
+					   creationComplete="init()"
+					   addedToStage="addedToStage()"
+					   >
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Style source="css/style.css"/>
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.events.Event;
+			import flash.events.TimerEvent;
+			import flash.geom.Point;
+			import flash.geom.Rectangle;
+			import flash.media.StageWebView;
+			import flash.utils.Timer;
+			import mx.collections.ArrayCollection;
+			import org.osmf.utils.OSMFSettings;
+			import ru.elibsystem.elis.model.InfopanelInfoBlock;
+			import ru.elibsystem.elis.model.InfopanelNews;
+			import ru.elibsystem.elis.model.InfopanelVideo;
+			import ru.elibsystem.elis.util.web.InfopanelRepository;
+			import flash.filters.BitmapFilterQuality;
+			import flash.events.InvokeEvent;
+			
+			[Bindable]
+			public var orgTitle:String = "Infopanel";
+			
+			[Bindable]
+			public var date:Date = new Date();
+			
+			[Bindable]
+			public var backgroundColor:String = "000000";
+			
+			[Bindable]
+			public var color:String = "808080";
+			
+			/**
+			 * Показывать ли таймер вверху
+			 */
+			[Bindable]
+			public var isTimerTopEnabled:Boolean = false;
+			
+			/**
+			 * Показывать ли таймер снизу
+			 */
+			[Bindable]
+			public var isTimerBottomEnabled:Boolean = false;
+			
+			/**
+			 * Показывать ли информационный (рекламный) блок
+			 */
+			[Bindable]
+			public var isInfoBlockEnabled:Boolean = false;
+			
+			/**
+			 * Показывать ли блок новостей
+			 */
+			[Bindable]
+			public var isRssEnabled:Boolean = false;
+			
+			
+									
+			//protected var rssWebView:StageWebView = new StageWebView(true);
+			
+			private var infopanelRepository:InfopanelRepository = new InfopanelRepository();
+			
+			/**
+			 * Коллекция rss-новостей из объектов InfopanelNews
+			 */
+			private var rssCollection:ArrayCollection = new ArrayCollection();
+			
+			private var baseUrlDefault:String = "http://k.psu.ru/infopanel";	// default
+			
+			private var rssTimer:Timer = new Timer(10000);
+			
+			private var infoBlockTimer:Timer = new Timer(15000);
+				
+			public function init():void {
+				OSMFSettings.enableStageVideo = false;
+				NativeApplication.nativeApplication.addEventListener(InvokeEvent.INVOKE, onInvoke, false, 0, true);
+				//rssWebView.viewPort = new Rectangle(0, 0, 0, 0);
+				rssTimer.addEventListener(TimerEvent.TIMER, rssTimerTick);
+				infoBlockTimer..addEventListener(TimerEvent.TIMER, infoBlockTimerTick);
+				color = "808080";
+				backgroundColor = "BB2644";
+				wrapper.opaqueBackground = 0xBB2644;						
+			}	
+			
+			/**
+			 * Вызывается когда команда запускается из командной строки. See: http://help.adobe.com/en_US/as3/dev/WS5b3ccc516d4fbf351e63e3d118676a5d46-8000.html
+			 * @param	invokeEvent
+			 */
+			public function onInvoke(invokeEvent:InvokeEvent):void { 			
+						 
+				var args:Array = invokeEvent.arguments;
+				
+				trace("arguments length " + args.length);
+				
+				for (var i:int = 0; i < args.length; i++ ) {					
+					var cmd:String;
+					var param:String;
+					if (args[i].charAt(0) == "-") {
+						cmd = args[i];
+						if ((i + 1) < args.length) {
+							param = args[i+1];
+						}	
+						
+					}					
+					if (cmd == "-site" && param != null) {
+						infopanelRepository.baseUrl = param;
+						i++;
+					} else if (cmd == "-rss" && param != null) {
+						infopanelRepository.rssUrl = param;
+						isRssEnabled = true;
+						i++;
+					} else if (cmd == "-css" && param != null) {
+						infopanelRepository.cssUrl = param;
+						//trace("css url '" + param + "'");
+						i++;
+					} else if (cmd == "-color" && param != null) {
+						color = param;						
+						i++;
+					} else if (cmd == "-background" && param != null) {
+						backgroundColor = param;						
+						wrapper.opaqueBackground = parseInt(param,16);
+						i++;						
+					} else if (cmd == "-enableInfoBlock") {
+						isInfoBlockEnabled = true;						
+						trace("enable info block");
+					}
+					
+				}
+				
+				if (infopanelRepository.baseUrl == null)
+					infopanelRepository.baseUrl = baseUrlDefault;	// default
+				
+				if (infopanelRepository.baseUrl != null)
+					start();
+					
+				// timer auto enabled	
+				if (isRssEnabled) {					// if rss enabled
+					isTimerBottomEnabled = true;
+					isTimerTopEnabled = false;
+					trace("isRssEnabled");
+				} else if (!isRssEnabled && isInfoBlockEnabled) {			// only infoBlockEnabled					
+					isTimerTopEnabled = true;
+					isTimerBottomEnabled = false;
+					trace("only infoblock enabled");
+				} else if (!isInfoBlockEnabled){		// infoblock and rss disabled
+					isTimerTopEnabled = true;
+					isTimerBottomEnabled = false;
+					trace("infoblock and rss desabled");
+				}
+				trace("isTimerTopEnabled: " + isTimerTopEnabled + " isTimerBottomEnabled: " + isTimerBottomEnabled );	
+			}	
+			
+			private function start():void {	
+				addEventListener(Event.ENTER_FRAME, onFrameEnter);
+				
+				//infopanelRepository.baseUrl = "http://k.psu.ru/infopanel";
+				infopanelRepository.infoBlockSuccess = infoBlockSuccess;
+				infopanelRepository.videoSuccess = videoSuccess;
+				infopanelRepository.loadVideo();
+				infopanelRepository.loadInfoBlock();		
+				if (infopanelRepository.rssUrl != null) {
+					infopanelRepository.rssSuccess = rssSuccess;
+					infopanelRepository.loadRss();
+				}
+			}
+			
+			private function videoSuccess(data:InfopanelVideo):void {
+				videoPlayer.source = data.urlMp4;				
+			}
+			
+			private function rssSuccess(rssItems:ArrayCollection):void {
+				
+				if (rssItems.length == 0)
+					return;
+				rssCollection = rssItems;
+				var index:int = Math.round(Math.random() * (rssCollection.length-1));
+				setRssText((rssCollection.getItemAt(index) as InfopanelNews).body);
+				trace("rssSuccess " + (rssCollection.getItemAt(0) as InfopanelNews).body);
+				if (!rssTimer.running)
+					rssTimer.start();
+			}
+			
+			private function infoBlockSuccess(infoBlock:InfopanelInfoBlock):void {
+				
+				if (infoBlock.htmlCode.length == 0)
+					return;
+				setInfoBlockText(infoBlock.htmlCode);
+				if (!infoBlockTimer.running)
+					infoBlockTimer.start();
+			}
+			
+			/**
+			 * Attach default css or url from arguments.
+			 * @param	text
+			 * @param	isInfoblock - css for infoblock?
+			 * @return
+			 */
+			private function attachCss(text:String,isInfoblock:Boolean = false):String {
+				if (infopanelRepository.cssUrl != null) {
+					text = '<style type="text/css" media="all">@import url("' + infopanelRepository.cssUrl + '");</style>' + text;
+				} else {
+					var imgCss:String = isInfoblock ? "img{max-width: 100%; height: auto; padding: 10px;}" : "img{max-height: 100%; width: auto; padding: 10px;}";
+					text = "<head><style type='text/css'>" + imgCss + "\n *{ font-size: 32px; text-overflow: ellipsis; }\n a{color:#" + color + "; text-decoration:none;}\n body{color:#" + color + "; background-color:#" + backgroundColor + "; height:100%;text-overflow: ellipsis; overflow:hidden;}</style></head><body>" + text + "</body>";
+				}
+				//trace(text);
+				return text;
+			}
+			
+			private function setInfoBlockText(text:String):void {
+				if (!htmlInfoBlock) return;
+				text = attachCss(text,true);
+				htmlInfoBlock.htmlText = text;
+			}
+			
+			private function setRssText(text:String):void {
+				if (!htmlRss) return;
+				text = attachCss(text);
+				htmlRss.htmlText = text;
+			}
+			
+			private function rssTimerTick(event:TimerEvent):void {
+				if (rssTimer.repeatCount % 60 != 0) {		// Протикало не кратно 60 раз - отобразим xml
+					rssSuccess(rssCollection);
+				} else {
+					infopanelRepository.loadRss();			// Если протикало кратно 60 раз - перезагрузим xml
+				}
+			}
+			
+			private function infoBlockTimerTick(event:TimerEvent):void {
+				infopanelRepository.loadInfoBlock();			// Если протикало кратно 60 раз - перезагрузим xml				
+			}
+			
+			private function onFrameEnter(event:Event):void {
+				date = new Date();						
+			}
+			
+			/**
+			 * Возвращает время в двух символов
+			 * @param	num - время в минутах или секундах
+			 * @return
+			 */
+			private function doubleDigitFormat(num:Number):String {
+				var out:String;
+				if(num < 10) {
+					out = "0" + num;
+				} else {
+					out = num.toString();
+				}
+				return out;
+			}	
+			
+			private function addedToStage():void {
+				import flash.display.StageDisplayState;
+				stage.displayState = StageDisplayState.FULL_SCREEN; 				
+				//rssWebView.stage = stage;
+				
+			}
+		]]>
+	</fx:Script>
+	
+	<s:Group width="100%" height="100%" id="wrapper" opaqueBackground="{backgroundColor}">		
+		
+		<s:VGroup width="100%" height="100%">						
+			<s:HGroup width="100%" height="100%" >
+				<s:VideoDisplay id="videoPlayer" 
+					complete="infopanelRepository.loadVideo()"
+					width="100%" height="100%" autoPlay="true"/>	
+				<mx:HTML id="htmlInfoBlock" width="40%" height="100%" paddingTop="{nowTimeVideo.height}"  visible="{isInfoBlockEnabled}" includeInLayout="{isInfoBlockEnabled}" />
+			</s:HGroup>	
+			<s:HGroup width="100%"   >
+				<mx:HTML id="htmlRss" width="100%" height="{nowTime.height}" />							
+				<s:Label id="nowTime" text="{date.getHours()} : {doubleDigitFormat(date.getMinutes())} : {doubleDigitFormat(date.getSeconds())}" styleName="infopanelTime" right="0" textAlpha="0.3" visible="{isTimerBottomEnabled}" includeInLayout="{isTimerBottomEnabled}">
+					<s:filters>
+						<s:DropShadowFilter distance="0" angle="90" color="0x000000" alpha="0.9" blurX="10" blurY="10" quality="{BitmapFilterQuality.HIGH}" />						
+					</s:filters>
+				</s:Label>
+			</s:HGroup>			
+		</s:VGroup>	
+		<s:Group width="100%">
+			<s:HGroup width="100%" styleName="infopanelHeader">						
+				<s:Label text="{orgTitle}" styleName="infopanelTitle" width="100%" visible="false"/>
+									
+				<s:Label id="nowTimeVideo" text="{date.getHours()} : {doubleDigitFormat(date.getMinutes())} : {doubleDigitFormat(date.getSeconds())}" styleName="infopanelTime" right="0" textAlpha="0.3" visible="{isTimerTopEnabled}" includeInLayout="{isTimerTopEnabled}">
+					<s:filters>
+						<s:DropShadowFilter distance="0" angle="90" color="0x000000" alpha="0.9" blurX="10" blurY="10" quality="{BitmapFilterQuality.HIGH}" />						
+					</s:filters>
+				</s:Label>
+			</s:HGroup>
+		</s:Group>	
+		
+	</s:Group>
+	
+</s:WindowedApplication>
