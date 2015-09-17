@@ -42,3 +42,7 @@ background (optinal) - background color
 
 ![Infopanel video and InfoBlock]
 (http://www.elibsystem.ru/sites/default/files/docs/infopanel/InfoPanel-infoblock.png)
+
+## Hardware requirements
+
+Adobe AIR use video hardware acceleration. It good work on Mac mini. On Intel atom can be problems with video performance.
